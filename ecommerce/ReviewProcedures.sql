@@ -115,4 +115,49 @@ EXCEPTION
 END;
 $$;
 
+-- --------------------------------------------
+-- get_reviews: all reviews written by a member, newest first
+-- Usage: SELECT * FROM get_reviews(2);
+-- --------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_reviews(
+    p_member_id INTEGER
+)
+RETURNS TABLE (
+    review_id     INTEGER,
+    product_id    INTEGER,
+    product_name  VARCHAR,
+    rating        SMALLINT,
+    review_text   TEXT,
+    created_at    TIMESTAMP,
+    updated_at    TIMESTAMP,
+    is_edited     BOOLEAN,
+    helpful_count INTEGER,
+    comment_count INTEGER
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.member WHERE id = p_member_id) THEN
+        RAISE EXCEPTION 'Member not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
+    SELECT r.id,
+           r.product_id,
+           p.name,
+           r.rating,
+           r.review_text,
+           r.created_at,
+           r.updated_at,
+           r.updated_at > r.created_at,
+           (SELECT COUNT(*)::INTEGER FROM public.review_vote rv WHERE rv.review_id = r.id),
+           (SELECT COUNT(*)::INTEGER FROM public.comment c WHERE c.review_id = r.id AND c.deleted_at IS NULL)
+      FROM public.review r
+      JOIN public.product p ON p.id = r.product_id
+     WHERE r.member_id = p_member_id
+     ORDER BY r.updated_at DESC, r.id DESC;
+END;
+$$;
+
 COMMIT;
