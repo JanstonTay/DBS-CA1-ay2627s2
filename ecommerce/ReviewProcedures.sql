@@ -198,4 +198,44 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------
+-- delete_review: a member deletes their own review.
+-- All comments (and replies) and helpful votes on the review are
+-- deleted with it. The number of comments removed is returned.
+-- Usage: CALL delete_review(2, 1, NULL);
+-- --------------------------------------------
+CREATE OR REPLACE PROCEDURE public.delete_review(
+    p_member_id INTEGER,
+    p_review_id INTEGER,
+    INOUT p_comments_deleted INTEGER DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_owner_id INTEGER;
+BEGIN
+    SELECT member_id INTO v_owner_id
+      FROM public.review
+     WHERE id = p_review_id
+       FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Review not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_owner_id IS DISTINCT FROM p_member_id THEN
+        RAISE EXCEPTION 'You can only delete your own reviews.' USING ERRCODE = '42501';
+    END IF;
+
+    -- Remove the review's comments (and all their replies) and votes explicitly,
+    -- so the behaviour is clear here and not only in the ON DELETE CASCADE rules.
+    DELETE FROM public.comment WHERE review_id = p_review_id;
+    GET DIAGNOSTICS p_comments_deleted = ROW_COUNT;
+
+    DELETE FROM public.review_vote WHERE review_id = p_review_id;
+
+    DELETE FROM public.review WHERE id = p_review_id;
+END;
+$$;
+
 COMMIT;
