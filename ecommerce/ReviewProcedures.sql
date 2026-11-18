@@ -160,4 +160,42 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------
+-- update_review: a member edits the rating and text of their own review
+-- updated_at is set by the trigger trg_review_updated_at.
+-- Usage: CALL update_review(2, 1, 4, 'Still good after a month');
+-- --------------------------------------------
+CREATE OR REPLACE PROCEDURE public.update_review(
+    p_member_id   INTEGER,
+    p_review_id   INTEGER,
+    p_rating      INTEGER,
+    p_review_text TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_owner_id INTEGER;
+BEGIN
+    SELECT member_id INTO v_owner_id
+      FROM public.review
+     WHERE id = p_review_id
+       FOR UPDATE;   -- lock the row so two edits can't overlap
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Review not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_owner_id IS DISTINCT FROM p_member_id THEN
+        RAISE EXCEPTION 'You can only edit your own reviews.' USING ERRCODE = '42501';
+    END IF;
+
+    PERFORM public.validate_review_input(p_rating, p_review_text);
+
+    UPDATE public.review
+       SET rating = p_rating,
+           review_text = btrim(p_review_text)
+     WHERE id = p_review_id;
+END;
+$$;
+
 COMMIT;
