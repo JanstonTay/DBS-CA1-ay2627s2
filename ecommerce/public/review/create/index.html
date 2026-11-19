@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Write a Review – HydroMax Shop</title>
+  <link rel="stylesheet" href="/review/create/style.css"/>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="nav-icon">💧</span>
+      <span>HydroMax Shop</span>
+    </div>
+    <div class="nav-links">
+      <span class="nav-welcome">Welcome, <strong id="navUsername">User</strong></span>
+      <a href="/product/retrieve" class="nav-link">Products</a>
+      <a href="/review/retrieve/all" class="nav-link">My Reviews</a>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-header-inner">
+      <h1>Write a Review</h1>
+      <p>Tell other customers what you think of a bottle you bought</p>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="form-card">
+
+      <!-- Message -->
+      <div id="message" class="message hidden"></div>
+
+      <form id="reviewForm" novalidate>
+        <div class="form-group">
+          <label for="productSelect">Product</label>
+          <select id="productSelect" class="form-input">
+            <option value="">Loading products...</option>
+          </select>
+          <p class="form-hint">You can only review products from a completed order.</p>
+        </div>
+
+        <div class="form-group">
+          <span class="form-label">Rating</span>
+          <div class="star-rating" id="starRating">
+            <input type="radio" id="star5" name="rating" value="5"/><label for="star5" title="5 stars">★</label>
+            <input type="radio" id="star4" name="rating" value="4"/><label for="star4" title="4 stars">★</label>
+            <input type="radio" id="star3" name="rating" value="3"/><label for="star3" title="3 stars">★</label>
+            <input type="radio" id="star2" name="rating" value="2"/><label for="star2" title="2 stars">★</label>
+            <input type="radio" id="star1" name="rating" value="1"/><label for="star1" title="1 star">★</label>
+          </div>
+          <p class="form-hint" id="ratingText">No rating chosen</p>
+        </div>
+
+        <div class="form-group">
+          <label for="reviewText">Your review</label>
+          <textarea id="reviewText" class="form-input" rows="6" placeholder="What did you like or dislike?"></textarea>
+          <p class="form-hint"><span id="charCount">0</span> / 1000 characters</p>
+        </div>
+
+        <div class="form-actions">
+          <a href="/product/retrieve" class="btn-secondary">Cancel</a>
+          <button type="submit" class="btn-primary" id="submitBtn">Post Review</button>
+        </div>
+      </form>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>© 2025 HydroMax Shop · ST0525 Database Systems CA1</p>
+  </footer>
+
+  <script src="/review/create/script.js"></script>
+</body>
+</html>
