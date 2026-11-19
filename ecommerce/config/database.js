@@ -20,6 +20,9 @@ const toCamelCase = (str) =>
   str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 
 const transformKeys = (obj) => {
+  // Dates are objects with no keys of their own: keep them as they are,
+  // otherwise they would be rebuilt as an empty {}
+  if (obj instanceof Date) return obj;
   if (Array.isArray(obj)) return obj.map(transformKeys);
   if (obj !== null && typeof obj === "object") {
     return Object.fromEntries(
