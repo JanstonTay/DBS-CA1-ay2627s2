@@ -238,4 +238,69 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------
+-- toggle_review_vote (extra feature: "helpful" votes)
+-- Adds the member's vote if they haven't voted, removes it if they have.
+-- Members can't vote on their own review.
+-- Returns whether the member now has a vote, and the new total.
+-- Usage: CALL toggle_review_vote(3, 1, NULL, NULL);
+-- --------------------------------------------
+CREATE OR REPLACE PROCEDURE public.toggle_review_vote(
+    p_member_id INTEGER,
+    p_review_id INTEGER,
+    INOUT p_voted BOOLEAN DEFAULT NULL,
+    INOUT p_helpful_count INTEGER DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_owner_id INTEGER;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.member WHERE id = p_member_id) THEN
+        RAISE EXCEPTION 'Member not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    SELECT member_id INTO v_owner_id FROM public.review WHERE id = p_review_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Review not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_owner_id = p_member_id THEN
+        RAISE EXCEPTION 'You cannot vote on your own review.' USING ERRCODE = '42501';
+    END IF;
+
+    DELETE FROM public.review_vote WHERE member_id = p_member_id AND review_id = p_review_id;
+
+    IF FOUND THEN
+        p_voted := FALSE;
+    ELSE
+        INSERT INTO public.review_vote (member_id, review_id)
+        VALUES (p_member_id, p_review_id)
+        ON CONFLICT DO NOTHING;   -- a simultaneous identical click is ignored
+        p_voted := TRUE;
+    END IF;
+
+    SELECT COUNT(*)::INTEGER INTO p_helpful_count
+      FROM public.review_vote WHERE review_id = p_review_id;
+END;
+$$;
+
+-- --------------------------------------------
+-- product_rating_summary (extra feature): average rating, count and
+-- 5-to-1 star breakdown for every product (products with no reviews show 0).
+-- Usage: SELECT * FROM product_rating_summary WHERE product_id = 1;
+-- --------------------------------------------
+CREATE OR REPLACE VIEW public.product_rating_summary AS
+SELECT p.id                                              AS product_id,
+       COUNT(r.id)::INTEGER                              AS review_count,
+       COALESCE(ROUND(AVG(r.rating), 1), 0)              AS average_rating,
+       COUNT(*) FILTER (WHERE r.rating = 5)::INTEGER     AS five_star,
+       COUNT(*) FILTER (WHERE r.rating = 4)::INTEGER     AS four_star,
+       COUNT(*) FILTER (WHERE r.rating = 3)::INTEGER     AS three_star,
+       COUNT(*) FILTER (WHERE r.rating = 2)::INTEGER     AS two_star,
+       COUNT(*) FILTER (WHERE r.rating = 1)::INTEGER     AS one_star
+  FROM public.product p
+  LEFT JOIN public.review r ON r.product_id = p.id
+ GROUP BY p.id;
+
 COMMIT;
