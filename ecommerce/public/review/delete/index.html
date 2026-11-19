@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Delete Review – HydroMax Shop</title>
+  <link rel="stylesheet" href="/review/create/style.css"/>
+  <style>
+    .stars { font-size: 1.4rem; color: #d6dbe1; }
+    .stars .filled { color: #f5a623; }
+    .btn-delete { background: #c0392b; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="nav-icon">💧</span>
+      <span>HydroMax Shop</span>
+    </div>
+    <div class="nav-links">
+      <span class="nav-welcome">Welcome, <strong id="navUsername">User</strong></span>
+      <a href="/product/retrieve" class="nav-link">Products</a>
+      <a href="/review/retrieve/all" class="nav-link">My Reviews</a>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-header">
+    <h1>Delete Review</h1>
+    <p>Check the review below before deleting it</p>
+  </div>
+
+  <main class="main-content">
+    <div class="form-card">
+      <div id="message" class="message hidden"></div>
+
+      <div class="form-group">
+        <span class="form-label">Product</span>
+        <p id="productName"></p>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Rating</span>
+        <div id="stars" class="stars"></div>
+      </div>
+
+      <div class="form-group">
+        <span class="form-label">Your review</span>
+        <p id="reviewText"></p>
+      </div>
+
+      <div class="message error">
+        Deleting this review also removes all comments, replies and helpful votes on it.
+        This cannot be undone.
+      </div>
+
+      <div class="form-actions">
+        <a href="/review/retrieve/all" class="btn-secondary">Cancel</a>
+        <button id="deleteBtn" class="btn-primary btn-delete">Delete Review</button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>© 2025 HydroMax Shop · ST0525 Database Systems CA1</p>
+  </footer>
+
+  <script src="/review/delete/script.js"></script>
+</body>
+</html>
