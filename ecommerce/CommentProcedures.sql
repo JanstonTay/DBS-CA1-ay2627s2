@@ -79,4 +79,80 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------
+-- get_comments: the whole conversation on one review, as a thread
+-- Rules:
+--   * the review must exist (no comments yet = 0 rows, not an error)
+--   * top-level comments and replies to any depth (WITH RECURSIVE)
+--   * each comment is followed by its replies; siblings oldest first
+--   * depth 0 = top-level comment, 1 = reply, 2 = reply to a reply ...
+--   * a deleted comment still shows (so its replies keep their place)
+--     as '[deleted]', without the writer's id or username
+--   * is_review_author = the writer also wrote the review ("Author" badge)
+-- Usage: SELECT * FROM get_comments(1);
+-- --------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_comments(
+    p_review_id INTEGER
+)
+RETURNS TABLE (
+    comment_id        INTEGER,
+    parent_comment_id INTEGER,
+    member_id         INTEGER,
+    username          VARCHAR,
+    comment_text      TEXT,
+    created_at        TIMESTAMP,
+    is_deleted        BOOLEAN,
+    is_review_author  BOOLEAN,
+    depth             INTEGER
+)
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_review_author INTEGER;
+BEGIN
+    SELECT r.member_id INTO v_review_author
+      FROM public.review r
+     WHERE r.id = p_review_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Review not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    RETURN QUERY
+    WITH RECURSIVE
+    -- number each comment among its siblings: oldest first
+    numbered AS (
+        SELECT c.id AS c_id, c.parent_comment_id AS c_parent, c.member_id AS c_member,
+               c.comment_text AS c_text, c.created_at AS c_created, c.deleted_at AS c_deleted,
+               ROW_NUMBER() OVER (PARTITION BY c.parent_comment_id
+                                  ORDER BY c.created_at, c.id)::INTEGER AS sibling_no
+          FROM public.comment c
+         WHERE c.review_id = p_review_id
+    ),
+    -- walk down from the top-level comments, building a sort path
+    thread AS (
+        SELECT n.*, 0 AS lvl, ARRAY[n.sibling_no] AS sort_path
+          FROM numbered n
+         WHERE n.c_parent IS NULL
+        UNION ALL
+        SELECT n.*, t.lvl + 1, t.sort_path || n.sibling_no
+          FROM numbered n
+          JOIN thread t ON n.c_parent = t.c_id
+    )
+    SELECT t.c_id,
+           t.c_parent,
+           CASE WHEN t.c_deleted IS NULL THEN t.c_member END,
+           CASE WHEN t.c_deleted IS NULL THEN m.username END,
+           COALESCE(t.c_text, '[deleted]'),
+           t.c_created,
+           t.c_deleted IS NOT NULL,
+           t.c_deleted IS NULL AND t.c_member = v_review_author,
+           t.lvl
+      FROM thread t
+      JOIN public.member m ON m.id = t.c_member
+     ORDER BY t.sort_path;
+END;
+$$;
+
 COMMIT;
