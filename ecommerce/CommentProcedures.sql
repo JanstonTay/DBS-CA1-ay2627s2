@@ -155,4 +155,68 @@ BEGIN
 END;
 $$;
 
+-- --------------------------------------------
+-- delete_comment: a member deletes their own comment
+-- Rules:
+--   * the comment must exist and not already be deleted
+--   * only the writer can delete it
+--   * no replies: the comment is removed completely
+--   * has replies: it becomes '[deleted]' (text erased) so the
+--     replies keep their place
+--   * a '[deleted]' placeholder whose last reply is removed is
+--     removed too, all the way up the thread
+-- p_kept_as_placeholder returns TRUE when it became '[deleted]'.
+-- Usage: CALL delete_comment(3, 1, NULL);
+-- --------------------------------------------
+CREATE OR REPLACE PROCEDURE public.delete_comment(
+    p_member_id   INTEGER,
+    p_comment_id  INTEGER,
+    INOUT p_kept_as_placeholder BOOLEAN DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_owner   INTEGER;
+    v_deleted TIMESTAMP;
+    v_parent  INTEGER;
+BEGIN
+    -- lock the row so a reply can't be added while we delete it
+    SELECT member_id, deleted_at, parent_comment_id
+      INTO v_owner, v_deleted, v_parent
+      FROM public.comment
+     WHERE id = p_comment_id
+       FOR UPDATE;
+
+    IF NOT FOUND OR v_deleted IS NOT NULL THEN
+        RAISE EXCEPTION 'Comment not found.' USING ERRCODE = 'P0002';
+    END IF;
+
+    IF v_owner IS DISTINCT FROM p_member_id THEN
+        RAISE EXCEPTION 'You can only delete your own comments.' USING ERRCODE = '42501';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.comment WHERE parent_comment_id = p_comment_id) THEN
+        UPDATE public.comment
+           SET deleted_at = now(), comment_text = NULL
+         WHERE id = p_comment_id;
+        p_kept_as_placeholder := TRUE;
+        RETURN;
+    END IF;
+
+    DELETE FROM public.comment WHERE id = p_comment_id;
+    p_kept_as_placeholder := FALSE;
+
+    -- tidy up: remove '[deleted]' parents that now have no replies left
+    WHILE v_parent IS NOT NULL LOOP
+        DELETE FROM public.comment c
+         WHERE c.id = v_parent
+           AND c.deleted_at IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM public.comment r WHERE r.parent_comment_id = c.id)
+        RETURNING c.parent_comment_id INTO v_parent;
+
+        EXIT WHEN NOT FOUND;
+    END LOOP;
+END;
+$$;
+
 COMMIT;
