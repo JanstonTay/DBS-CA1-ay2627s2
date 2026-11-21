@@ -5,6 +5,7 @@ const path = require("path");
 const authRoutes = require("./routes/auth");
 const productRoutes = require("./routes/products");
 const reviewRoutes = require("./routes/reviews");
+const commentRoutes = require("./routes/comments");
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/auth", authRoutes);
 app.use("/api/product", productRoutes);
 app.use("/api/review", reviewRoutes);
+app.use("/api/comment", commentRoutes);
 
 
 // Serve HTML pages
