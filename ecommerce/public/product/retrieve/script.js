@@ -13,25 +13,124 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =============================================================
-// TODO: Implement this function to create a comment
-// This function should:
-// 1. Read the review ID and comment text from the form
-// 2. Send a POST request to /api/comment/create
-// 3. Display a success or error message
+// Reviews & comments panel
+// The rules (author can only reply, no replying to deleted comments,
+// only delete your own) are checked by the stored procedures;
+// this page only shows the threads and sends the forms.
 // =============================================================
-function createComment(reviewId) {
-  // TODO: Students to implement this function
+let currentProductId = null;
+const replyTo = {};      // reviewId -> { id, username } of the comment being replied to
+const commentNames = {}; // commentId -> username, for "Replying to ..."
+
+async function openReviews(productId) {
+  currentProductId = productId;
+  document.getElementById("reviewPanel").classList.remove("hidden");
+  document.getElementById("panelBody").innerHTML = "<p>Loading…</p>";
+  try {
+    const data = await api(`/api/product/retrieve/${productId}`);
+    if (!data.success) return showPanelMessage(data.message, "error");
+    document.getElementById("panelTitle").textContent = `Reviews · ${data.product.name}`;
+    if (data.reviews.length === 0) {
+      document.getElementById("panelBody").innerHTML = "<p>No reviews yet.</p>";
+      return;
+    }
+    const threads = await Promise.all(data.reviews.map((r) => api(`/api/comment/retrieve/${r.id}`)));
+    document.getElementById("panelBody").innerHTML = data.reviews
+      .map((r, i) => reviewBlock(r, threads[i].comments || []))
+      .join("");
+  } catch (err) {
+    showPanelMessage("Failed to load reviews. Please try again.", "error");
+  }
 }
 
-// =============================================================
-// TODO: Implement this function to delete a comment
-// This function should:
-// 1. Read the comment ID from the form
-// 2. Send a DELETE request to /api/comment/delete
-// 3. Display a success or error message
-// =============================================================
-function deleteComment(commentId) {
-  // TODO: Students to implement this function
+function reviewBlock(r, comments) {
+  const reply = replyTo[r.id];
+  comments.forEach((c) => (commentNames[c.commentId] = c.username));
+  const comment = (c) => `
+    <div class="comment ${c.isDeleted ? "deleted" : ""}" style="margin-left:${c.depth * 20}px">
+      <div class="comment-meta">
+        ${c.isDeleted ? "" : `<strong>${escapeHtml(c.username)}</strong>${c.isReviewAuthor ? '<span class="author-badge">Author</span>' : ""} · `}
+        ${new Date(c.createdAt).toLocaleDateString("en-SG")}
+      </div>
+      <div class="comment-text">${escapeHtml(c.commentText)}</div>
+      ${c.isDeleted ? "" : `
+        <button class="link-btn" onclick="startReply(${r.id}, ${c.commentId})">Reply</button>
+        ${String(c.memberId) === localStorage.getItem("memberId") ? `<button class="link-btn danger" onclick="deleteComment(${c.commentId})">Delete</button>` : ""}`}
+    </div>`;
+
+  return `
+    <div class="review-block">
+      <div class="review-head">
+        <span><strong>${escapeHtml(r.memberUsername)}</strong> · ${new Date(r.updatedAt).toLocaleDateString("en-SG")}</span>
+        <span class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span>
+      </div>
+      <p class="review-body">${escapeHtml(r.reviewText)}</p>
+      ${comments.map(comment).join("")}
+      <div class="comment-form">
+        <textarea id="commentText-${r.id}" rows="2" placeholder="${reply ? "Write a reply…" : "Add a comment…"}"></textarea>
+        <div class="comment-form-foot">
+          <span>${reply ? `Replying to ${escapeHtml(reply.username)} · <button class="link-btn" onclick="startReply(${r.id}, null)">Cancel</button>` : ""}</span>
+          <button class="btn-review" onclick="createComment(${r.id})">${reply ? "Reply" : "Comment"}</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function startReply(reviewId, commentId) {
+  replyTo[reviewId] = commentId ? { id: commentId, username: commentNames[commentId] } : undefined;
+  await openReviews(currentProductId);
+  document.getElementById(`commentText-${reviewId}`).focus();
+}
+
+async function createComment(reviewId) {
+  const commentText = document.getElementById(`commentText-${reviewId}`).value;
+  const data = await api("/api/comment/create", "POST", {
+    reviewId,
+    parentCommentId: replyTo[reviewId]?.id ?? null,
+    commentText,
+  });
+  if (data.success) {
+    replyTo[reviewId] = undefined;
+    await openReviews(currentProductId);
+  }
+  // on an error the typed text stays so it can be fixed
+  showPanelMessage(data.message, data.success ? "success" : "error");
+}
+
+async function deleteComment(commentId) {
+  if (!confirm("Delete this comment?")) return;
+  const data = await api("/api/comment/delete", "DELETE", { commentId });
+  await openReviews(currentProductId);
+  showPanelMessage(data.message, data.success ? "success" : "error");
+}
+
+function closeReviews() {
+  document.getElementById("reviewPanel").classList.add("hidden");
+  document.getElementById("panelMessage").className = "message hidden";
+}
+
+// fetch with the login token; an expired login goes back to the login page
+async function api(url, method = "GET", body) {
+  const res = await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (res.status === 401 || data.message === "Invalid or expired token.") logout();
+  return data;
+}
+
+function showPanelMessage(msg, type) {
+  const el = document.getElementById("panelMessage");
+  el.textContent = msg;
+  el.className = `message ${type}`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text ?? "";
+  return div.innerHTML;
 }
 
 async function loadProducts() {
@@ -88,6 +187,7 @@ function renderProducts(products) {
           <button class="btn-review" onclick="goToReview(${p.id}, '${encodeURIComponent(p.name)}')">
             ✍️ Write a Review
           </button>
+          <button class="btn-comments" onclick="openReviews(${p.id})">💬 Reviews & Comments</button>
         </div>
       </div>`;
   }).join("");

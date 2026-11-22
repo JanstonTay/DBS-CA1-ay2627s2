@@ -81,6 +81,18 @@
 
   </main>
 
+  <!-- Reviews & comments panel -->
+  <div id="reviewPanel" class="panel-backdrop hidden" onclick="if (event.target === this) closeReviews()">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="panelTitle">Reviews</h2>
+        <button class="panel-close" onclick="closeReviews()">✕</button>
+      </div>
+      <div id="panelMessage" class="message hidden"></div>
+      <div id="panelBody"></div>
+    </div>
+  </div>
+
   <footer class="footer">
     <p>© 2025 HydroMax Shop · ST0525 Database Systems CA1</p>
   </footer>
